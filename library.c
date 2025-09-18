@@ -2,8 +2,8 @@
 #include <stdio.h>
 #include <stdint.h>
 
-#define num_leds 125
-#define BRIGHT 200
+#define num_leds 1
+#define BRIGHT 100
 #define GPIO_address 0x000000
 #define wait 11  //how long to wait with the signal ~.4us because we initialise timer once, I will just double this value for longer wait period
                 //11 instead of 12 cuz clock is one cycle more
@@ -12,11 +12,10 @@
 uint8_t BUFFER_LEDS[num_leds][3] = {0};
 
 volatile int* TMR1_CTRL = (volatile int*) 0x04000024; //for starting and stopping timer
-
 volatile int* TMR1_flag = (volatile int*) 0x04000020;  //for checking if timer did done
 
 //this function maps a value from ange A into a corresponding value in range B, useful when we want 10 brightness levels etc
-int Map_values(int value, int A_min, int A_max, int B_min, int B_max)
+int Map_value(uint8_t value, uint8_t A_min, uint8_t A_max, uint8_t B_min, uint8_t B_max)
 {
     if (value < A_min)
         value = A_min;
@@ -27,26 +26,19 @@ int Map_values(int value, int A_min, int A_max, int B_min, int B_max)
 
 
 //they are written in macros to not mess with timings
-#define pin_high(){
+#define pin_high();
     //write code here that will set the appropriate pin to 1
-}
 
-#define pin_low(){
+
+#define pin_low();
     //write code here that will set the appropriate pin to 0
-}
 
-#define wait(int cycles){
-    //tell processor to wait a number of cycles, which is stupid cuz for loops take a shit ton of time, 
-    //imma just say nop enough times and is gonna be ok
-    //meybe this useful for the 50us as it doesnt have to be as precise
-
-}
 
 //how to send one singular bit, this process is very timing dependent
 
 ////thi function is IMPORTANT if the timing is off stuff breaks ##################################################################################
 //#################################################################################################################################
-#define SendBit(bool bit){
+void SendBit(bool bit){
     if(bit){
         while(!(TMR1_flag[0] & 0x1));  //this is just waiting to make sure we are in sync with timers
         pin_high();   //executing this immediately to minimize drift
@@ -58,7 +50,7 @@ int Map_values(int value, int A_min, int A_max, int B_min, int B_max)
                                     //to reset the flag
         pin_low();                  //do it first, so that the gpio is set down exactly where it needs, then reset the flag, but the tmr is still running
         TMR1_flag[0] = 0; 
-        //while(!TMR1_flag[0] & 0x1);  //I will on purpose not wait here, as the next if will at least wait 400ns to finish the timer
+        //whileint(!TMR1_flag[0] & 0x1);  //I will on purpose not wait here, as the next if will at least wait 400ns to finish the timer
     }
     else
     {
@@ -77,37 +69,53 @@ int Map_values(int value, int A_min, int A_max, int B_min, int B_max)
 }
 
 
-void singleLed_sendColor(uint8_t Red, uint8_t Gren, uint8_t Blue, uint8_t brightness){
-    uint8_t green = Map_Range(Green, 0, 255, 0, brightness); // -100 adjusting for red led low forward voltage
-    uint8_t red = Map_Range(Red, 0, 255, 0, brightness);
-    uint8_t blue = Map_Range(Blue, 0, 255, 0, brightness);
+void singleLed_sendColor(uint8_t Red, uint8_t Green, uint8_t Blue, uint8_t brightness){
+    uint8_t green = Map_value(Green, 0, brightness, 0, 255); 
+    uint8_t red = Map_value(Red, 0, brightness, 0, 255);
+    uint8_t blue = Map_value(Blue, 0, brightness, 0, 255);
+
     //ok, so I have to rethink the logic a bit in here
     //how do I time 24 bits perfectly?
     int i = 0;
-    TMR1_CTRL[0] = 0x6;  //start the timer in continous mode for better accuracy
+    TMR1_CTRL[0] = 0x6;  //start the timer in continous mode for better accuracy [[this make or break]]
+
     //and now what? I wait for one edge when in the waiting bit to make sure we are on timer, tolerance is 600ns so should be fine with the 400 extra
-     // Send the green component first (MSB)
+    // Send the green component first (MSB)
+
+    /*this is actually genius, so listen. SendBit always waits for timer to be done, so the first call sends the first rising edge
+    and from that moment the timing has to be tight for 24 bits.
+    so when we set the GPIO to LOW, we actually dont wait, just return asap and then the next macro wait for the timer to be done,
+    so best case scenario we start next rising edge at precisely 1200ns or worst case 1600. which is still in tolerance
+    the worst thing rn is to make sure that from end of one function to the beginnign of the next is not more than 800ns but I dont think so
+    */ 
     for (i = 7; i >= 0; i--) {
         SendBit((green >> i) & 1);
     }
-    // Send the red component next
-    for (int i = 7; i >= 0; i--) {
+
+    for (i = 7; i >= 0; i--) {
         SendBit((red >> i) & 1);
     }
-    // Send the blue component last (LSB)
-    for (int i = 7; i >= 0; i--) {
+
+    for (i = 7; i >= 0; i--) {
         SendBit((blue >> i) & 1);
     }
 
 }
 
-void colout_it(uint8_t BUFFER_LEDS[num_leds][3])
+void colour_it(uint8_t BUFFER[num_leds][3])
 {
     for (int i = 0; i < num_leds; i++) {
-        singleLed_sendColor(BUFFER_LEDS[i][0], BUFFER_LEDS[i][1], BUFFER_LEDS[i][2], BRIGHT);
+        singleLed_sendColor(BUFFER[i][0], BUFFER[i][1], BUFFER[i][2], BRIGHT);
     }
     //we can delay as long as we want >50us here, the leds will reset
-    Delay_Us(50);
+    int cnt = 0;
+    while (cnt < 2000)  //wait abt 66us
+    {
+        while(!(TMR1_flag[0] & 0x1));
+        TMR1_flag[0] = 0;
+        cnt++;
+
+    }
 }
 void init_timer(void)
 {
@@ -124,7 +132,11 @@ void init_timer(void)
 }
 
 int main(){
-    printf("Hello World\n");
+    init_timer();
+    BUFFER_LEDS[0][0] = 50;
+    BUFFER_LEDS[0][1] = 50;
+    BUFFER_LEDS[0][2] = 50;
 
-    //I will test this stuff here
+    colour_it(BUFFER_LEDS);
+
 }
