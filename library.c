@@ -9,8 +9,8 @@ extern void print_dec(unsigned int);
 
 #define BRIGHT 100
 #define GPIO_address 0x040000E0 //gpio no1
-#define num_leds 1
-#define wait 5  //how long to wait with the signal ~.4us because we initialise timer once, I will just double this value for longer wait period
+#define num_leds 3
+#define wait 4  //how long to wait with the signal ~.4us because we initialise timer once, I will just double this value for longer wait period
                 //11 instead of 12 cuz clock is one cycle more
 
 //this is to guarantee 8 bits for RGB good representation
