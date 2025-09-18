@@ -4,7 +4,7 @@
 
 #define num_leds 1
 #define BRIGHT 100
-#define GPIO_address 0x000000
+#define GPIO_address 0x040000E0 //gpio no1
 #define wait 11  //how long to wait with the signal ~.4us because we initialise timer once, I will just double this value for longer wait period
                 //11 instead of 12 cuz clock is one cycle more
 
@@ -13,6 +13,8 @@ uint8_t BUFFER_LEDS[num_leds][3] = {0};
 
 volatile int* TMR1_CTRL = (volatile int*) 0x04000024; //for starting and stopping timer
 volatile int* TMR1_flag = (volatile int*) 0x04000020;  //for checking if timer did done
+
+volatile int* gpio1_data = (volatile int*) GPIO_address;
 
 //this function maps a value from ange A into a corresponding value in range B, useful when we want 10 brightness levels etc
 int Map_value(uint8_t value, uint8_t A_min, uint8_t A_max, uint8_t B_min, uint8_t B_max)
@@ -26,13 +28,9 @@ int Map_value(uint8_t value, uint8_t A_min, uint8_t A_max, uint8_t B_min, uint8_
 
 
 //they are written in macros to not mess with timings
-#define pin_high();
-    //write code here that will set the appropriate pin to 1
-
-
-#define pin_low();
-    //write code here that will set the appropriate pin to 0
-
+#define pin_high() (gpio1_data[0] = 0x1)   //this is clobbering other pins, I know. I don't care
+    
+#define pin_low() (gpio1_data[0] = 0x0)  //this is clobbering other pins, I know. I don't care
 
 //how to send one singular bit, this process is very timing dependent
 
@@ -130,9 +128,15 @@ void init_timer(void)
 
   return;
 }
+void init_gpio(void)
+{
+    volatile int* GPIO_dir = (volatile int*) (GPIO_address + 0x4);
+    GPIO_dir[0] = GPIO_dir[0] | 0x1; //set it as output 
 
+}
 int main(){
     init_timer();
+    init_gpio();
     BUFFER_LEDS[0][0] = 50;
     BUFFER_LEDS[0][1] = 50;
     BUFFER_LEDS[0][2] = 50;
