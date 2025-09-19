@@ -7,7 +7,7 @@
    For copyright and licensing, see file COPYING */
 #include <stdint.h>
 #include <stdlib.h>
-#define NUM_LEDS 10
+#define NUM_LEDS 144
 extern void init_all(void);
 extern void colour_it(uint8_t BUFFER[][3], int num_leds);
 extern void print(char *);
@@ -21,7 +21,7 @@ uint8_t BUFFER_LEDS[NUM_LEDS][3];
 int main()
 {
   init_all();
-  //int cnt = 0;
+  int cnt = 0;
   BUFFER_LEDS[0][0] = 0;
   BUFFER_LEDS[0][1] = 0;
   BUFFER_LEDS[0][2] = 0;
@@ -37,7 +37,7 @@ int main()
     //BUFFER_LEDS[0][0] = cnt;
     //BUFFER_LEDS[1][1] = cnt;
     //cnt++;
-    for(int i = 0; i < NUM_LEDS; i++)
+   /* for(int i = 0; i < NUM_LEDS; i++)
     { 
       BUFFER_LEDS[i][0] = 1;
       BUFFER_LEDS[i][1] = 1;
@@ -57,7 +57,27 @@ int main()
       }
       colour_it(BUFFER_LEDS, NUM_LEDS);
     }
-   
+   */
+
+    if(cnt > 143)
+      cnt = 0;
+
+    BUFFER_LEDS[cnt][0] = 64;
+    BUFFER_LEDS[cnt][1] = 64;
+    BUFFER_LEDS[cnt][2] = 64;
+    if(cnt > 0){
+    BUFFER_LEDS[cnt-1][0] = 0;
+    BUFFER_LEDS[cnt-1][1] = 0;
+    BUFFER_LEDS[cnt-1][2] = 0;
+    }
+    else{
+      BUFFER_LEDS[NUM_LEDS-1][0] = 0;
+      BUFFER_LEDS[NUM_LEDS-1][1] = 0;
+      BUFFER_LEDS[NUM_LEDS-1][2] = 0;
+    }
+    colour_it(BUFFER_LEDS, NUM_LEDS);
+
+    cnt++;
     //if(cnt>50)
      // cnt = 0;
     
