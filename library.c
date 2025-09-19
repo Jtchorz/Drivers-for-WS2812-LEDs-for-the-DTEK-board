@@ -7,11 +7,11 @@
 extern void print(char *);
 extern void print_dec(unsigned int);
 
-#define BRIGHT 100
+#define BRIGHT 255
 #define GPIO_address 0x040000E0 //gpio no1
-#define num_leds 3
-#define wait 4  //how long to wait with the signal ~.4us because we initialise timer once, I will just double this value for longer wait period
+#define wait 8  //how long to wait with the signal ~.4us because we initialise timer once, I will just double this value for longer wait period
                 //11 instead of 12 cuz clock is one cycle more
+                //we aim for 8 instructions, so that we have a lot of space for overshoot
 
 //this is to guarantee 8 bits for RGB good representation
 //uint8_t BUFFER_LEDS[num_leds][3] = {0};
@@ -43,17 +43,19 @@ int Map_value(uint8_t value, uint8_t A_min, uint8_t A_max, uint8_t B_min, uint8_
 ////thi function is IMPORTANT if the timing is off stuff breaks ##################################################################################
 //#################################################################################################################################
 void SendBit(bool bit){
-  
+  TMR1_flag[0] = 0;
     if(bit){
         while(!(TMR1_flag[0] & 0x1));  //this is just waiting to make sure we are in sync with timers
-        pin_high();   //executing this immediately to minimize drift
-        
         TMR1_flag[0] = 0;
 
+        pin_high(); 
+        
         while(!(TMR1_flag[0] & 0x1));
         TMR1_flag[0] = 0;
-        while(!(TMR1_flag[0] & 0x1));   //do two cycles, so that it is ~0.8us and by running it in cont it doesnt matter how many instructions do I use
-                                    //to reset the flag
+        while(!(TMR1_flag[0] & 0x1));   //do three cycles, so that it is ~0.800us and by running it in cont it doesnt matter how many instructions do I use
+                                        //to reset the flag
+                                        // TMR1_flag[0] = 0;
+        while(!(TMR1_flag[0] & 0x1));
         pin_low();                  //do it first, so that the gpio is set down exactly where it needs, then reset the flag, but the tmr is still running
         TMR1_flag[0] = 0; 
         //whileint(!TMR1_flag[0] & 0x1);  //I will on purpose not wait here, as the next if will at least wait 400ns to finish the timer
@@ -62,11 +64,13 @@ void SendBit(bool bit){
     {
         //this is copy, but just in reverse, first high for one cycle, then high for two cycles
         while(!(TMR1_flag[0] & 0x1));  //this is just waiting to make sure we are in sync with timers
-        
-        pin_high();   //executing this immediately to minimize drift
-        TMR1_flag[0] = 0;
+         //we have a bigger tolarance between diodes than inside, here is better
 
-        //while(!(TMR1_flag[0] & 0x1));         //just one cycle high
+        pin_high();   
+         TMR1_flag[0] = 0;
+        //while(!(TMR1_flag[0] & 0x1));         //just one cycle high  
+        //There needs to be no delay here, otherwise it fs up
+
         pin_low();
                     
         TMR1_flag[0] = 0;
@@ -88,7 +92,7 @@ void singleLed_sendColor(uint8_t Red, uint8_t Green, uint8_t Blue, uint8_t brigh
 
     //ok, so I have to rethink the logic a bit in here
     //how do I time 24 bits perfectly?
-    int i = 0;
+    int i = 0;  
     TMR1_CTRL[0] = 0x6;  //start the timer in continous mode for better accuracy [[this make or break]]
     
     //and now what? I wait for one edge when in the waiting bit to make sure we are on timer, tolerance is 600ns so should be fine with the 400 extra
@@ -114,7 +118,7 @@ void singleLed_sendColor(uint8_t Red, uint8_t Green, uint8_t Blue, uint8_t brigh
 
 }
 
-void colour_it(uint8_t BUFFER[][3])
+void colour_it(uint8_t BUFFER[][3], int num_leds)
 {
     for (int i = 0; i < num_leds; i++) {
         singleLed_sendColor(BUFFER[i][0], BUFFER[i][1], BUFFER[i][2], BRIGHT);
@@ -123,7 +127,7 @@ void colour_it(uint8_t BUFFER[][3])
     int cnt = 0;
 
     
-    while (cnt < 2000)  //wait abt 66us
+    while (cnt < 2000 * 5)  //wait abt 66us
     {
         while(!(TMR1_flag[0] & 0x1));
         TMR1_flag[0] = 0;
