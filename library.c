@@ -21,6 +21,8 @@ volatile int* TMR1_flag = (volatile int*) 0x04000020;  //for checking if timer d
 
 volatile int* gpio1_data = (volatile int*) GPIO_address;
 
+volatile uint8_t* flagbit = (volatile uint8_t*) 0x04000020;
+
 //this function maps a value from ange A into a corresponding value in range B, useful when we want 10 brightness levels etc
 int Map_value(uint8_t value, uint8_t A_min, uint8_t A_max, uint8_t B_min, uint8_t B_max)
 {
@@ -43,18 +45,19 @@ int Map_value(uint8_t value, uint8_t A_min, uint8_t A_max, uint8_t B_min, uint8_
 ////thi function is IMPORTANT if the timing is off stuff breaks ##################################################################################
 //#################################################################################################################################
 void SendBit(bool bit){
+    
   TMR1_flag[0] = 0;
     if(bit){
         while(!(TMR1_flag[0] & 0x1));  //this is just waiting to make sure we are in sync with timers
+        
+        pin_high(); 
         TMR1_flag[0] = 0;
 
-        pin_high(); 
-        
         while(!(TMR1_flag[0] & 0x1));
         TMR1_flag[0] = 0;
         while(!(TMR1_flag[0] & 0x1));   //do three cycles, so that it is ~0.800us and by running it in cont it doesnt matter how many instructions do I use
                                         //to reset the flag
-                                        // TMR1_flag[0] = 0;
+        TMR1_flag[0] = 0;
         while(!(TMR1_flag[0] & 0x1));
         pin_low();                  //do it first, so that the gpio is set down exactly where it needs, then reset the flag, but the tmr is still running
         TMR1_flag[0] = 0; 
@@ -62,19 +65,23 @@ void SendBit(bool bit){
     }
     else
     {
+        
         //this is copy, but just in reverse, first high for one cycle, then high for two cycles
         while(!(TMR1_flag[0] & 0x1));  //this is just waiting to make sure we are in sync with timers
          //we have a bigger tolarance between diodes than inside, here is better
-
+        TMR1_flag[0] = 0;
         pin_high();   
-         TMR1_flag[0] = 0;
+        
+        while(!flagbit);
         //while(!(TMR1_flag[0] & 0x1));         //just one cycle high  
         //There needs to be no delay here, otherwise it fs up
-
+        //__
         pin_low();
                     
         TMR1_flag[0] = 0;
         //and now we have to wait ~0.8ns, so we will execute one wait, and then follow the for normally
+        while(!(TMR1_flag[0] & 0x1));
+        TMR1_flag[0] = 0;
         while(!(TMR1_flag[0] & 0x1));
         TMR1_flag[0] = 0;
     }
@@ -82,9 +89,13 @@ void SendBit(bool bit){
 
 void singleLed_sendColor(uint8_t Red, uint8_t Green, uint8_t Blue, uint8_t brightness){
     //print_dec((unsigned int)Green);
-    uint8_t green = Map_value(Green, 0, brightness, 0, 255); 
-    uint8_t red = Map_value(Red, 0, brightness, 0, 255);
-    uint8_t blue = Map_value(Blue, 0, brightness, 0, 255);
+    //uint8_t green = Map_value(Green, 0, brightness, 0, 255); 
+    //uint8_t red = Map_value(Red, 0, brightness, 0, 255);
+    //uint8_t blue = Map_value(Blue, 0, brightness, 0, 255);
+
+    //uint8_t green = Green; 
+    //uint8_t red = Red;
+   // uint8_t blue = Blue;
 
     //print_dec((unsigned int)green);
     //print_dec((unsigned int)red);
@@ -93,7 +104,7 @@ void singleLed_sendColor(uint8_t Red, uint8_t Green, uint8_t Blue, uint8_t brigh
     //ok, so I have to rethink the logic a bit in here
     //how do I time 24 bits perfectly?
     int i = 0;  
-    TMR1_CTRL[0] = 0x6;  //start the timer in continous mode for better accuracy [[this make or break]]
+    //TMR1_CTRL[0] = 0x6;  //start the timer in continous mode for better accuracy [[this make or break]]
     
     //and now what? I wait for one edge when in the waiting bit to make sure we are on timer, tolerance is 600ns so should be fine with the 400 extra
     // Send the green component first (MSB)
@@ -105,15 +116,15 @@ void singleLed_sendColor(uint8_t Red, uint8_t Green, uint8_t Blue, uint8_t brigh
     the worst thing rn is to make sure that from end of one function to the beginnign of the next is not more than 800ns but I dont think so
     */ 
     for (i = 7; i >= 0; i--) {
-        SendBit((green >> i) & 1);
+        SendBit((Green >> i) & 1);
     }
 
     for (i = 7; i >= 0; i--) {
-        SendBit((red >> i) & 1);
+        SendBit((Red >> i) & 1);
     }
 
     for (i = 7; i >= 0; i--) {
-        SendBit((blue >> i) & 1);
+        SendBit((Blue >> i) & 1);
     }
 
 }
@@ -127,7 +138,7 @@ void colour_it(uint8_t BUFFER[][3], int num_leds)
     int cnt = 0;
 
     
-    while (cnt < 2000 * 5)  //wait abt 66us
+    while (cnt < 2000 * 250)  //wait abt 66us
     {
         while(!(TMR1_flag[0] & 0x1));
         TMR1_flag[0] = 0;
