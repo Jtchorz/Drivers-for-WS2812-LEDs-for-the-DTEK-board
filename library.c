@@ -1,4 +1,4 @@
-#include <stdint.h>
+//#include <stdint.h>
 #include "library.h"
 
 extern void print(char *);
