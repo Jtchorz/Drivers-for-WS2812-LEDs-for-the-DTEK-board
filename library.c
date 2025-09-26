@@ -1,8 +1,5 @@
-//thic code is for now in C for testing, when I'm finished and figure out how to do .h this will change.
-#include <stdio.h>
 #include <stdint.h>
-#include <stdlib.h> 
-#include <stdbool.h>
+#include "library.h"
 
 extern void print(char *);
 extern void print_dec(unsigned int);
@@ -13,32 +10,16 @@ extern void print_dec(unsigned int);
                 //11 instead of 12 cuz clock is one cycle more
                 //we aim for 8 instructions, so that we have a lot of space for overshoot
 
-//this is to guarantee 8 bits for RGB good representation
-//uint8_t BUFFER_LEDS[num_leds][3] = {0};
-
-volatile int* TMR1_CTRL = (volatile int*) 0x04000024; //for starting and stopping timer
 volatile int* TMR1_flag = (volatile int*) 0x04000020;  //for checking if timer did done
 
 volatile int* gpio1_data = (volatile int*) GPIO_address;
 
 volatile uint8_t* flagbit = (volatile uint8_t*) 0x04000020;
 
-//this function maps a value from ange A into a corresponding value in range B, useful when we want 10 brightness levels etc
-int Map_value(uint8_t value, uint8_t A_min, uint8_t A_max, uint8_t B_min, uint8_t B_max)
-{
-    if (value < A_min)
-        value = A_min;
-    if (value > A_max)
-        value = A_max;
-
-    return (int)(B_min + ((float)(value - A_min)/(A_max - A_min))  *   (B_max - B_min));  //normalise value to [0,1] then scale it to B range 
-}
-
-
 //they are written in macros to not mess with timings
-#define pin_high() (gpio1_data[0] = 0x1)   //this is clobbering other pins, I know. I don't care
+#define pin_high() ((*gpio1_data) = 0x1)   //this is clobbering other pins, I know. I will care with testing
     
-#define pin_low() (gpio1_data[0] = 0x0)  //this is clobbering other pins, I know. I don't care
+#define pin_low() ((*gpio1_data) = 0x0)  //this is clobbering other pins, I know.
 
 #define flag_reset() ((*flagbit) = 0)
 
@@ -94,23 +75,8 @@ void SendBit(bool bit){
 }
 
 void singleLed_sendColor(uint8_t Red, uint8_t Green, uint8_t Blue, uint8_t brightness){
-    //print_dec((unsigned int)Green);
-    //uint8_t green = Map_value(Green, 0, brightness, 0, 255); 
-    //uint8_t red = Map_value(Red, 0, brightness, 0, 255);
-    //uint8_t blue = Map_value(Blue, 0, brightness, 0, 255);
-
-    //uint8_t green = Green; 
-    //uint8_t red = Red;
-   // uint8_t blue = Blue;
-
     int i = 0;  
 
-    /*this is actually genius, so listen. SendBit always waits for timer to be done, so the first call sends the first rising edge
-    and from that moment the timing has to be tight for 24 bits.
-    so when we set the GPIO to LOW, we actually dont wait, just return asap and then the next macro wait for the timer to be done,
-    so best case scenario we start next rising edge at precisely 1200ns or worst case 1600ns. which is still in tolerance
-    the worst thing rn is to make sure that from end of one function to the beginnign of the next is not more than 800ns but I dont think so
-    */ 
     for (i = 7; i >= 0; i--) {
         SendBit((Green >> i) & 1);
     }
@@ -133,9 +99,9 @@ void colour_it(uint8_t BUFFER[][3], int num_leds)
     //we can delay as long as we want >50us here, the leds will reset,  but for lowest we did experimentally found 140 clock counts
     int cnt = 0;
     
-    while (cnt < 143)  //wait abt 66us
+    while (cnt < 143)  //wait enough so it resets reliably
     {
-        while(!(TMR1_flag[0] & 0x1));
+        while(!(TMR1_flag[0] & 0x1));   //check this later, see if you can use your macros here
         TMR1_flag[0] = 0;
         cnt++;
 
@@ -151,6 +117,7 @@ void init_timer(void)
   TMR1_PLow[0] = timeout & 0xFFFF;
   TMR1_PHigh[0] = (timeout >> 16) & 0xFFFF;
 
+  volatile int* TMR1_CTRL = (volatile int*) 0x04000024; //for starting and stopping timer
   TMR1_CTRL[0] = 0x6;  //start the timer in continous mode for better accuracy
 
   return;

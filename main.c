@@ -8,9 +8,10 @@
 #include <stdint.h>
 #include <stdlib.h>
 #define NUM_LEDS 144
-extern void init_all(void);
-extern void colour_it(uint8_t BUFFER[][3], int num_leds);
-extern void print(char *);
+/*extern void init_all(void);
+extern void colour_it(uint8_t BUFFER[][3], int num_leds);/*/
+#include "library.h" 
+//extern void print(char *);
 
 void handle_interrupt(unsigned cause) 
 {}
@@ -62,9 +63,9 @@ int main()
     if(cnt > 143)
       cnt = 0;
 
-    BUFFER_LEDS[cnt][0] = 64;
-    BUFFER_LEDS[cnt][1] = 64;
-    BUFFER_LEDS[cnt][2] = 64;
+    BUFFER_LEDS[cnt][0] = 1;
+    BUFFER_LEDS[cnt][1] = 1;
+    BUFFER_LEDS[cnt][2] = 1;
     if(cnt > 0){
     BUFFER_LEDS[cnt-1][0] = 0;
     BUFFER_LEDS[cnt-1][1] = 0;
